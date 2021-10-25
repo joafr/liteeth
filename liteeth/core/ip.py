@@ -92,12 +92,21 @@ class LiteEthIPV4Packetizer(Packetizer):
 
 
 class LiteEthIPTX(Module):
-    def __init__(self, mac_address, ip_address, arp_table, dw=8):
+    def __init__(self, mac_address, ip_address, arp_table, dw=8, with_identification_counter=False):
         self.sink   = sink   = stream.Endpoint(eth_ipv4_user_description_extended(dw))
         self.source = source = stream.Endpoint(eth_mac_description(dw))
         self.target_unreachable = Signal()
 
         # # #
+        identification = Signal(len(sink.identification))
+        if with_identification_counter:
+            self.sync += [
+                If(sink.valid & sink.ready & sink.last,
+                    identification.eq(identification + 1)
+                )
+            ]
+        else:
+            self.comb += identification.eq(sink.identification)
 
         # Checksum.
         self.submodules.checksum = checksum = LiteEthIPV4Checksum(skip_checksum=True)
@@ -118,11 +127,16 @@ class LiteEthIPTX(Module):
             packetizer.sink.total_length.eq(ipv4_header.length + sink.length),
             packetizer.sink.version.eq(0x4),     # ipv4
             packetizer.sink.ihl.eq(ipv4_header.length//4),
-            packetizer.sink.identification.eq(sink.identification),
+            packetizer.sink.identification.eq(identification),
             packetizer.sink.ttl.eq(0x80),
             packetizer.sink.sender_ip.eq(sink.ip_address),
             checksum.header.eq(packetizer.header),
-            packetizer.sink.checksum.eq(checksum.value)
+            packetizer.sink.checksum.eq(checksum.value),
+            packetizer.sink.ecn.eq(0),
+            packetizer.sink.dscp.eq(0),
+            packetizer.sink.flags_rb.eq(0),
+            packetizer.sink.flags_df.eq(1), # Don't fragment
+            packetizer.sink.flags_mf.eq(0)
         ]
 
         target_mac = Signal(48, reset_less=True)
@@ -231,8 +245,8 @@ class LiteEthIPRX(Module):
 # IP -----------------------------------------------------------------------------------------------
 
 class LiteEthIP(Module):
-    def __init__(self, mac, mac_address, ip_address, arp_table, dw=8):
-        self.submodules.tx = tx = LiteEthIPTX(mac_address, ip_address, arp_table, dw=dw)
+    def __init__(self, mac, mac_address, ip_address, arp_table, dw=8, with_identification_counter=False):
+        self.submodules.tx = tx = LiteEthIPTX(mac_address, ip_address, arp_table, dw=dw, with_identification_counter=with_identification_counter)
         self.submodules.rx = rx = LiteEthIPRX(mac_address, ip_address, dw=dw)
         mac_port = mac.crossbar.get_port(ethernet_type_ip, dw)
         self.comb += [

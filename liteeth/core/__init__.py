@@ -37,7 +37,8 @@ class LiteEthUDPIPCore(LiteEthIPCore):
 # IP Core modified ---------------------------------------------------------------------------------
 class LiteEthIPCoreMod(Module, AutoCSR):
     def __init__(self, phy, mac_address, ip_address, dw=8,
-            with_packet_fifo=False, tx_only=False):
+                 with_packet_fifo=False, tx_only=False,
+                 with_identification_counter=False):
             
         if with_packet_fifo:
             tx_fifo = PacketFIFO(eth_phy_description(phy.dw), 2048, buffered=False)
@@ -54,14 +55,16 @@ class LiteEthIPCoreMod(Module, AutoCSR):
         else:
             self.submodules.mac = LiteEthMAC(phy, dw, interface="crossbar", with_preamble_crc=True,
                rx_tx_additional=rx_tx_additional, endianness=endianness)
-        self.submodules.ip  = LiteEthIP(self.mac, mac_address, ip_address, None, dw=dw)
+        self.submodules.ip  = LiteEthIP(self.mac, mac_address, ip_address, None, dw=dw, with_identification_counter=with_identification_counter)
 
 
 # UDP IP Core modified ------------------------------------------------------------------------------
 class LiteEthUDPIPCoreMod(LiteEthIPCoreMod):
     def __init__(self, phy, mac_address, ip_address, clk_freq, with_icmp=True, dw=8,
-            with_packet_fifo=False, tx_only=False):
+                 with_packet_fifo=False, tx_only=False,
+                 with_identification_counter=False):
         ip_address = convert_ip(ip_address)
-        LiteEthIPCore.__init__(self, phy, mac_address, ip_address, clk_freq, dw=dw, tx_only=tx_only,
-                               with_icmp=with_icmp, with_packet_fifo=with_packet_fifo)
+        LiteEthIPCoreMod.__init__(self, phy, mac_address, ip_address, dw=dw,
+                                  with_packet_fifo=with_packet_fifo, tx_only=tx_only, 
+                                  with_identification_counter=with_identification_counter)
         self.submodules.udp = LiteEthUDP(self.ip, ip_address, dw=dw)
