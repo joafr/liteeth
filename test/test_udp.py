@@ -41,7 +41,7 @@ class DUT(Module):
             udp_port.sink.src_port.eq(0x1234),
             udp_port.sink.dst_port.eq(0x5678),
             udp_port.sink.length.eq(64//(dw//8)),
-            Record.connect(udp_port.source, self.logger.sink)
+            Record.connect(udp_port.source, self.logger.sink, omit=eth_ipv4_user_extended_fields)
         ]
 
 def main_generator(dut):

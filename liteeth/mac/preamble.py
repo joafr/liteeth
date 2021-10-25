@@ -11,6 +11,8 @@ from liteeth.common import *
 
 from migen.genlib.misc import chooser
 
+N_BITS_PREAMBLE = 64
+
 # MAC Preamble Inserter ----------------------------------------------------------------------------
 
 class LiteEthMACPreambleInserter(Module):
@@ -32,10 +34,11 @@ class LiteEthMACPreambleInserter(Module):
 
         # # #
 
-        preamble = Signal(64, reset=eth_preamble)
+        
+        preamble = Signal(N_BITS_PREAMBLE, reset=eth_preamble)
         # For 64 bits, `count` doesn't need to change. But migen won't create a
         # signal with a width of 0 bits, so add an unused bit for 64 bit path
-        count    = Signal(max=(64//dw) if dw != 64 else 2, reset_less=True)
+        count    = Signal(max=(N_BITS_PREAMBLE//dw) if dw != N_BITS_PREAMBLE else 2, reset_less=True)
         self.submodules.fsm = fsm = FSM(reset_state="IDLE")
         fsm.act("IDLE",
             self.sink.ready.eq(1),
@@ -51,9 +54,9 @@ class LiteEthMACPreambleInserter(Module):
             # generated Verilog will otherwise contain a statement which reads
             # beyond the bounds of preamble. This is in a branch which can never
             # be valid, but is enough reason for Vivado to refuse synthesis.
-            chooser(preamble, count, self.source.data, n=64//dw),
+            chooser(preamble, count, self.source.data, n=(N_BITS_PREAMBLE // dw)),
             If(self.source.ready,
-                If(count == (64//dw)-1,
+                If(count == (N_BITS_PREAMBLE//dw)-1,
                     NextState("COPY")
                 ).Else(
                     NextValue(count, count + 1)
@@ -103,6 +106,7 @@ class LiteEthMACPreambleChecker(Module):
             sink.ready.eq(1),
             # Match to end of preamble
             If(sink.valid & ~sink.last & (sink.data == preamble[-dw:]),
+                NextValue(source.first, 1),
                 NextState("COPY")
             ),
             If(sink.valid & sink.last, self.error.eq(1))
@@ -112,7 +116,10 @@ class LiteEthMACPreambleChecker(Module):
             source.last_be.eq(sink.last_be)
         ]
         fsm.act("COPY",
-            sink.connect(source, omit={"data", "last_be"}),
+            sink.connect(source, omit={"data", "last_be", "first"}),
+            If(source.valid & source.ready,
+                NextValue(source.first, 0)
+            ),
             If(source.valid & source.last & source.ready,
                 NextState("PREAMBLE"),
             )

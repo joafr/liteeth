@@ -20,6 +20,7 @@ class LiteEthMAC(Module, AutoCSR):
         ntxslots          = 2,
         hw_mac            = None,
         timestamp         = None,
+        rx_tx_additional  = (None, None),
         full_memory_we    = False,
         with_sys_datapath = False):
 
@@ -30,6 +31,7 @@ class LiteEthMAC(Module, AutoCSR):
         self.submodules.core = LiteEthMACCore(
             phy               = phy,
             dw                = dw,
+            rx_tx_additional  = rx_tx_additional,
             with_sys_datapath = with_sys_datapath,
             with_preamble_crc = with_preamble_crc
         )
@@ -44,6 +46,8 @@ class LiteEthMAC(Module, AutoCSR):
                 self.core.source.connect(self.depacketizer.sink),
                 self.depacketizer.source.connect(self.crossbar.master.sink)
             ]
+
+            self.csrs = self.core.get_csrs()
         else:
             # Wishbone MAC
             self.rx_slots  = CSRConstant(nrxslots)
@@ -76,6 +80,31 @@ class LiteEthMAC(Module, AutoCSR):
             else:
                 self.comb += self.interface.source.connect(self.core.sink)
                 self.comb += self.core.source.connect(self.interface.sink)
+
+    def get_csrs(self):
+        return self.csrs
+
+class LiteEthMACSingleSource(Module, AutoCSR):
+    def __init__(self, phy, dw,
+        endianness        = "big",
+        with_preamble_crc = True,
+        rx_tx_additional = (None, None)):
+        self.submodules.core = LiteEthMACCore(phy, dw, endianness, with_preamble_crc,
+                                                rx_tx_additional=rx_tx_additional)
+        self.csrs = []
+
+        self.submodules.crossbar     = LiteEthMACCrossbarSingleSource(dw)
+        self.submodules.packetizer   = LiteEthMACPacketizer(dw)
+        self.submodules.depacketizer = LiteEthMACDepacketizer(dw)
+        self.comb += [
+            self.crossbar.master.source.connect(self.packetizer.sink),
+            self.packetizer.source.connect(self.core.sink),
+            self.core.source.connect(self.depacketizer.sink),
+            self.depacketizer.source.connect(self.crossbar.master.sink)
+        ]
+
+        self.csrs = self.core.get_csrs()
+        self.source = self.crossbar.source
 
     def get_csrs(self):
         return self.csrs

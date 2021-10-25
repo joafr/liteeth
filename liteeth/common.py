@@ -170,12 +170,13 @@ def eth_phy_description(dw):
 
 # MAC
 def eth_mac_description(dw):
-    payload_layout = mac_header.get_layout() + [
+    param_layout = mac_header.get_layout()
+    payload_layout = [
         ("data",       dw),
         ("last_be", dw//8),
         ("error",   dw//8)
     ]
-    return EndpointDescription(payload_layout)
+    return EndpointDescription(payload_layout=payload_layout, param_layout=param_layout)
 
 # ARP
 def eth_arp_description(dw):
@@ -211,6 +212,24 @@ def eth_ipv4_user_description(dw):
         ("length",     16),
         ("protocol",    8),
         ("ip_address", 32)
+    ]
+    payload_layout = [
+        ("data",       dw),
+        ("last_be", dw//8),
+        ("error",   dw//8)
+    ]
+    return EndpointDescription(payload_layout, param_layout)
+
+eth_ipv4_user_extended_fields = ["target_ip", "identification", "target_mac", "sender_mac"]
+def eth_ipv4_user_description_extended(dw):
+    param_layout = [
+        ("length",     16),
+        ("protocol",    8),
+        ("ip_address", 32),
+        ("target_ip", 32),
+        ("identification", 16),
+        ("target_mac", 48),
+        ("sender_mac", 48),
     ]
     payload_layout = [
         ("data",       dw),
@@ -257,6 +276,25 @@ def eth_udp_user_description(dw):
         ("dst_port",   16),
         ("ip_address", 32),
         ("length",     16)
+    ]
+    payload_layout = [
+        ("data",       dw),
+        ("last_be", dw//8),
+        ("error",   dw//8)
+    ]
+    return EndpointDescription(payload_layout, param_layout)
+
+eth_udp_user_extended_fields = ["target_mac", "sender_mac", "target_ip", "identification"]
+def eth_udp_user_description_extended(dw):
+    param_layout = [
+        ("src_port",   16),
+        ("dst_port",   16),
+        ("ip_address", 32),
+        ("length",     16),
+        ("target_ip", 32),
+        ("identification", 16),
+        ("target_mac", 48),
+        ("sender_mac", 48)
     ]
     payload_layout = [
         ("data",       dw),

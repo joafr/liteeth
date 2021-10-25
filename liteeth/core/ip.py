@@ -7,22 +7,23 @@
 from liteeth.common import *
 from liteeth.crossbar import LiteEthCrossbar
 
-from liteeth.packet import Depacketizer, Packetizer
+#from liteeth.packet import Depacketizer, Packetizer
+from litex.soc.interconnect.packet import Depacketizer, Packetizer
 
 # IP Crossbar --------------------------------------------------------------------------------------
 
 class LiteEthIPV4MasterPort:
     def __init__(self, dw):
         self.dw     = dw
-        self.source = stream.Endpoint(eth_ipv4_user_description(dw))
-        self.sink   = stream.Endpoint(eth_ipv4_user_description(dw))
+        self.source = stream.Endpoint(eth_ipv4_user_description_extended(dw))
+        self.sink   = stream.Endpoint(eth_ipv4_user_description_extended(dw))
 
 
 class LiteEthIPV4SlavePort:
     def __init__(self, dw):
         self.dw     = dw
-        self.sink   = stream.Endpoint(eth_ipv4_user_description(dw))
-        self.source = stream.Endpoint(eth_ipv4_user_description(dw))
+        self.sink   = stream.Endpoint(eth_ipv4_user_description_extended(dw))
+        self.source = stream.Endpoint(eth_ipv4_user_description_extended(dw))
 
 
 class LiteEthIPV4UserPort(LiteEthIPV4SlavePort):
@@ -92,7 +93,7 @@ class LiteEthIPV4Packetizer(Packetizer):
 
 class LiteEthIPTX(Module):
     def __init__(self, mac_address, ip_address, arp_table, dw=8):
-        self.sink   = sink   = stream.Endpoint(eth_ipv4_user_description(dw))
+        self.sink   = sink   = stream.Endpoint(eth_ipv4_user_description_extended(dw))
         self.source = source = stream.Endpoint(eth_mac_description(dw))
         self.target_unreachable = Signal()
 
@@ -113,13 +114,13 @@ class LiteEthIPTX(Module):
                 "data"}),
             packetizer.sink.valid.eq(sink.valid & checksum.done),
             sink.ready.eq(packetizer.sink.ready & checksum.done),
-            packetizer.sink.target_ip.eq(sink.ip_address),
+            packetizer.sink.target_ip.eq(sink.target_ip),
             packetizer.sink.total_length.eq(ipv4_header.length + sink.length),
             packetizer.sink.version.eq(0x4),     # ipv4
             packetizer.sink.ihl.eq(ipv4_header.length//4),
-            packetizer.sink.identification.eq(0),
+            packetizer.sink.identification.eq(sink.identification),
             packetizer.sink.ttl.eq(0x80),
-            packetizer.sink.sender_ip.eq(ip_address),
+            packetizer.sink.sender_ip.eq(sink.ip_address),
             checksum.header.eq(packetizer.header),
             packetizer.sink.checksum.eq(checksum.value)
         ]
@@ -129,30 +130,14 @@ class LiteEthIPTX(Module):
         # FSM.
         self.submodules.fsm = fsm = FSM(reset_state="IDLE")
         fsm.act("IDLE",
+            packetizer.source.ready.eq(1),
             If(packetizer.source.valid,
+                packetizer.source.ready.eq(0),
                 If(sink.ip_address[28:] == mcast_ip_mask,
                     NextValue(target_mac, Cat(sink.ip_address[:23], 0, mcast_oui)),
                     NextState("SEND")
                 ).Else(
-                    NextState("SEND_MAC_ADDRESS_REQUEST")
-                )
-            )
-        )
-        self.comb += arp_table.request.ip_address.eq(sink.ip_address)
-        fsm.act("SEND_MAC_ADDRESS_REQUEST",
-            arp_table.request.valid.eq(1),
-            If(arp_table.request.valid & arp_table.request.ready,
-                NextState("WAIT_MAC_ADDRESS_RESPONSE")
-            )
-        )
-        fsm.act("WAIT_MAC_ADDRESS_RESPONSE",
-            If(arp_table.response.valid,
-                NextValue(target_mac, arp_table.response.mac_address),
-                arp_table.response.ready.eq(1),
-                If(arp_table.response.failed,
-                    self.target_unreachable.eq(1),
-                    NextState("DROP"),
-                ).Else(
+                    NextValue(target_mac, sink.target_mac),
                     NextState("SEND")
                 )
             )
@@ -161,16 +146,8 @@ class LiteEthIPTX(Module):
             packetizer.source.connect(source),
             source.ethernet_type.eq(ethernet_type_ip),
             source.target_mac.eq(target_mac),
-            source.sender_mac.eq(mac_address),
+            source.sender_mac.eq(sink.sender_mac),
             If(source.valid & source.last & source.ready,
-                NextState("IDLE")
-            )
-        )
-        fsm.act("DROP",
-            packetizer.source.ready.eq(1),
-            If(packetizer.source.valid &
-               packetizer.source.last &
-               packetizer.source.ready,
                 NextState("IDLE")
             )
         )
@@ -188,7 +165,7 @@ class LiteEthIPV4Depacketizer(Depacketizer):
 class LiteEthIPRX(Module):
     def __init__(self, mac_address, ip_address, dw=8):
         self.sink   = sink   = stream.Endpoint(eth_mac_description(dw))
-        self.source = source = stream.Endpoint(eth_ipv4_user_description(dw))
+        self.source = source = stream.Endpoint(eth_ipv4_user_description_extended(dw))
 
         # # #
 
@@ -209,7 +186,7 @@ class LiteEthIPRX(Module):
         fsm.act("IDLE",
             If(depacketizer.source.valid & checksum.done,
                 NextState("DROP"),
-                If((depacketizer.source.target_ip == ip_address) &
+                If(#(depacketizer.source.target_ip == ip_address) &
                    (depacketizer.source.version == 0x4) &
                    (depacketizer.source.ihl == 0x5) &
                    (checksum.value == 0),
@@ -223,9 +200,16 @@ class LiteEthIPRX(Module):
                 "protocol",
                 "data",
                 "error",
-                "last_be"}),
+                "last_be",
+                "identification",
+                "target_ip"
+                }),
             source.length.eq(depacketizer.source.total_length - (0x5*4)),
             source.ip_address.eq(depacketizer.source.sender_ip),
+            # source.sender_ip.eq(depacketizer.source.sender_ip),
+            # Extended
+            source.target_mac.eq(sink.target_mac),
+            source.sender_mac.eq(sink.sender_mac)
         ]
         fsm.act("RECEIVE",
             depacketizer.source.connect(source, keep={"valid", "ready"}),

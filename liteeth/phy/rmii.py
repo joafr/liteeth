@@ -114,7 +114,7 @@ class LiteEthPHYRMIICRG(Module, AutoCSR):
             self.comb += self.cd_eth_tx.clk.eq(ClockSignal(refclk_cd))
             # Drive clock_pads if provided.
             if clock_pads is not None:
-                self.specials += DDROutput(0, 1, clock_pads.ref_clk, ClockSignal("eth_tx"))
+                self.specials += DDROutput(0, 1, clock_pads.ref_clk, ClockSignal(refclk_cd + "_delayed"))
 
         # Reset
         self.reset = reset = Signal()
@@ -135,7 +135,9 @@ class LiteEthPHYRMII(Module, AutoCSR):
     dw          = 8
     tx_clk_freq = 50e6
     rx_clk_freq = 50e6
-    def __init__(self, clock_pads, pads, refclk_cd="eth", with_hw_init_reset=True):
+    def __init__(self, clock_pads, pads, refclk_cd="eth", with_hw_init_reset=True, name=None):
+        if name is not None:
+            self.name = name
         self.submodules.crg = LiteEthPHYRMIICRG(clock_pads, pads, refclk_cd, with_hw_init_reset)
         self.submodules.tx = ClockDomainsRenamer("eth_tx")(LiteEthPHYRMIITX(pads))
         self.submodules.rx = ClockDomainsRenamer("eth_rx")(LiteEthPHYRMIIRX(pads))

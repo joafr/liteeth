@@ -20,7 +20,7 @@ from liteeth.common import *
 from litex.soc.interconnect import wishbone
 from litex.soc.interconnect.packet import *
 
-from liteeth.packet import Depacketizer, Packetizer
+#from liteeth.packet import Depacketizer, Packetizer
 
 # Etherbone Packet ---------------------------------------------------------------------------------
 
@@ -125,7 +125,7 @@ class LiteEthEtherbonePacket(Module):
         udp_port = udp.crossbar.get_port(udp_port, dw=32, cd=cd)
         self.comb += [
             tx.source.connect(udp_port.sink),
-            udp_port.source.connect(rx.sink)
+            udp_port.source.connect(rx.sink, omit=eth_ipv4_user_extended_fields)
         ]
         self.sink, self.source = self.tx.sink, self.rx.source
 

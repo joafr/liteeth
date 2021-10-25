@@ -35,3 +35,25 @@ class LiteEthCrossbar(Module):
         for i, (k, v) in enumerate(self.users.items()):
             cases[k] = self.dispatcher.sel.eq(2**i)
         self.comb += Case(getattr(self.master.sink, self.dispatch_param), cases)
+
+
+class LiteEthArbiter(Module):
+    """A crossbar with only one RX-port (source) but many sinks.
+    
+    All ports are for TX only (sinks)
+    RX is present on the only output (source)
+
+    """
+    def __init__(self, master_port, dispatch_param, dw=8):
+        self.users  = OrderedDict()
+        self.master = master_port(dw)
+        self.source = self.master.sink
+        
+    # overload this in derived classes
+    def get_port(self, *args, **kwargs):
+        pass
+
+    def do_finalize(self):
+        # TX arbitrate
+        sinks = [port.sink for port in self.users.values()]
+        self.submodules.arbiter = Arbiter(sinks, self.master.source)

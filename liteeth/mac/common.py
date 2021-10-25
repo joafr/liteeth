@@ -5,9 +5,10 @@
 # SPDX-License-Identifier: BSD-2-Clause
 
 from liteeth.common import *
-from liteeth.crossbar import LiteEthCrossbar
+from liteeth.crossbar import LiteEthCrossbar, LiteEthArbiter
 
-from liteeth.packet import Depacketizer, Packetizer
+#from liteeth.packet import Depacketizer, Packetizer
+from litex.soc.interconnect.packet import Depacketizer, Packetizer
 
 # MAC Packetizer/Depacketizer ----------------------------------------------------------------------
 
@@ -51,6 +52,17 @@ class LiteEthMACCrossbar(LiteEthCrossbar):
 
     def get_port(self, ethernet_type, dw=8):
         port = LiteEthMACUserPort(dw)
+        if ethernet_type in self.users.keys():
+            raise ValueError("Ethernet type {0:#x} already assigned".format(ethernet_type))
+        self.users[ethernet_type] = port
+        return port
+
+class LiteEthMACCrossbarSingleSource(LiteEthArbiter):
+    def __init__(self, dw=8):
+        LiteEthArbiter.__init__(self, LiteEthMACMasterPort, "ethernet_type", dw)
+
+    def get_port(self, ethernet_type, dw=8):
+        port = LiteEthMACUserPort(dw) # TODO: possibly change to sink-only port
         if ethernet_type in self.users.keys():
             raise ValueError("Ethernet type {0:#x} already assigned".format(ethernet_type))
         self.users[ethernet_type] = port

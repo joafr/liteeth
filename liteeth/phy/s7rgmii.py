@@ -72,6 +72,7 @@ class LiteEthPHYRGMIIRX(Module):
         rx_ctl_ibuf    = Signal()
         rx_ctl_idelay  = Signal()
         rx_ctl         = Signal()
+        rx_ctl_xor_err = Signal()
         rx_data_ibuf   = Signal(4)
         rx_data_idelay = Signal(4)
         rx_data        = Signal(8)
@@ -98,7 +99,7 @@ class LiteEthPHYRGMIIRX(Module):
                 i_R  = 0,
                 i_D  = rx_ctl_idelay,
                 o_Q1 = rx_ctl,
-                o_Q2 = Signal(),
+                o_Q2 = rx_ctl_xor_err # Signal(), # RX_DV xor RX_ERR is ignored
             )
         ]
         for i in range(4):
@@ -138,13 +139,14 @@ class LiteEthPHYRGMIIRX(Module):
         self.comb += last.eq(~rx_ctl & rx_ctl_d)
         self.sync += [
             source.valid.eq(rx_ctl),
-            source.data.eq(rx_data)
+            source.data.eq(rx_data),
+            source.error.eq(rx_ctl ^ rx_ctl_xor_err)
         ]
         self.comb += source.last.eq(last)
 
 
 class LiteEthPHYRGMIICRG(Module, AutoCSR):
-    def __init__(self, clock_pads, pads, with_hw_init_reset, tx_delay=2e-9, hw_reset_cycles=256):
+    def __init__(self, clock_pads, pads, with_hw_init_reset, tx_delay=2e-9, hw_reset_cycles=256, tx_duty_cycle=0.500):
         self._reset = CSRStorage()
 
         # # #
@@ -172,7 +174,7 @@ class LiteEthPHYRGMIICRG(Module, AutoCSR):
         self.submodules.pll = pll = S7PLL()
         pll.register_clkin(ClockSignal("eth_rx"), 125e6)
         pll.create_clkout(self.cd_eth_tx, 125e6, with_reset=False)
-        pll.create_clkout(self.cd_eth_tx_delayed, 125e6, phase=tx_phase)
+        pll.create_clkout(self.cd_eth_tx_delayed, 125e6, phase=tx_phase, duty_cycle=tx_duty_cycle)
 
         eth_tx_clk_obuf = Signal()
         self.specials += [
@@ -212,8 +214,8 @@ class LiteEthPHYRGMII(Module, AutoCSR):
     tx_clk_freq = 125e6
     rx_clk_freq = 125e6
     def __init__(self, clock_pads, pads, with_hw_init_reset=True, tx_delay=2e-9, rx_delay=2e-9,
-            iodelay_clk_freq=200e6, hw_reset_cycles=256):
-        self.submodules.crg = LiteEthPHYRGMIICRG(clock_pads, pads, with_hw_init_reset, tx_delay, hw_reset_cycles)
+            iodelay_clk_freq=200e6, hw_reset_cycles=256, tx_duty_cycle=0.500):
+        self.submodules.crg = LiteEthPHYRGMIICRG(clock_pads, pads, with_hw_init_reset, tx_delay, hw_reset_cycles, tx_duty_cycle=tx_duty_cycle)
         self.submodules.tx  = ClockDomainsRenamer("eth_tx")(LiteEthPHYRGMIITX(pads))
         self.submodules.rx  = ClockDomainsRenamer("eth_rx")(LiteEthPHYRGMIIRX(pads, rx_delay, iodelay_clk_freq))
         self.sink, self.source = self.tx.sink, self.rx.source

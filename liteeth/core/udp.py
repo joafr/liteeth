@@ -9,22 +9,23 @@ from liteeth.crossbar import LiteEthCrossbar
 
 from litex.soc.interconnect import stream
 
-from liteeth.packet import Depacketizer, Packetizer
+#from liteeth.packet import Depacketizer, Packetizer
+from litex.soc.interconnect.packet import Depacketizer, Packetizer
 
 # UDP Crossbar -------------------------------------------------------------------------------------
 
 class LiteEthUDPMasterPort:
     def __init__(self, dw):
         self.dw     = dw
-        self.source = stream.Endpoint(eth_udp_user_description(dw))
-        self.sink   = stream.Endpoint(eth_udp_user_description(dw))
+        self.source = stream.Endpoint(eth_udp_user_description_extended(dw))
+        self.sink   = stream.Endpoint(eth_udp_user_description_extended(dw))
 
 
 class LiteEthUDPSlavePort:
     def __init__(self, dw):
         self.dw     = dw
-        self.sink   = stream.Endpoint(eth_udp_user_description(dw))
-        self.source = stream.Endpoint(eth_udp_user_description(dw))
+        self.sink   = stream.Endpoint(eth_udp_user_description_extended(dw))
+        self.source = stream.Endpoint(eth_udp_user_description_extended(dw))
 
 
 class LiteEthUDPUserPort(LiteEthUDPSlavePort):
@@ -49,16 +50,16 @@ class LiteEthUDPCrossbar(LiteEthCrossbar):
 
         # CDC.
         self.submodules.tx_cdc = tx_cdc = stream.ClockDomainCrossing(
-            layout  = eth_udp_user_description(user_port.dw),
-            cd_from = cd,
-            cd_to   ="sys"
+            layout=eth_udp_user_description_extended(user_port.dw),
+            cd_from=cd,
+            cd_to="sys"
         )
         self.comb += user_port.sink.connect(tx_cdc.sink)
 
         # Data-Width Conversion.
         self.submodules.tx_converter = tx_converter = stream.StrideConverter(
-            description_from = eth_udp_user_description(user_port.dw),
-            description_to   = eth_udp_user_description(self.dw)
+            eth_udp_user_description_extended(user_port.dw),
+            eth_udp_user_description_extended(self.dw)
         )
         self.comb += tx_cdc.source.connect(tx_converter.sink)
 
@@ -69,14 +70,14 @@ class LiteEthUDPCrossbar(LiteEthCrossbar):
         # --
         # Data-Width Conversion.
         self.submodules.rx_converter = rx_converter = stream.StrideConverter(
-            description_from = eth_udp_user_description(self.dw),
-            description_to   = eth_udp_user_description(user_port.dw)
+            description_from = eth_udp_user_description_extended(self.dw),
+            description_to   = eth_udp_user_description_extended(user_port.dw)
         )
         self.comb += internal_port.source.connect(rx_converter.sink)
 
         # CDC.
         self.submodules.rx_cdc = rx_cdc = stream.ClockDomainCrossing(
-            layout  = eth_udp_user_description(user_port.dw),
+            layout  = eth_udp_user_description_extended(user_port.dw),
             cd_from = "sys",
             cd_to   = cd
         )
@@ -103,8 +104,8 @@ class LiteEthUDPPacketizer(Packetizer):
 
 class LiteEthUDPTX(Module):
     def __init__(self, ip_address, dw=8):
-        self.sink   = sink   = stream.Endpoint(eth_udp_user_description(dw))
-        self.source = source = stream.Endpoint(eth_ipv4_user_description(dw))
+        self.sink   = sink   = stream.Endpoint(eth_udp_user_description_extended(dw))
+        self.source = source = stream.Endpoint(eth_ipv4_user_description_extended(dw))
 
         # # #
 
@@ -133,7 +134,8 @@ class LiteEthUDPTX(Module):
             )
         )
         fsm.act("SEND",
-            packetizer.source.connect(source),
+            packetizer.source.connect(source, omit=eth_udp_user_extended_fields),
+            sink.connect(source, keep=eth_udp_user_extended_fields),
             source.length.eq(packetizer.sink.length),
             source.protocol.eq(udp_protocol),
             source.ip_address.eq(sink.ip_address),
@@ -156,8 +158,8 @@ class LiteEthUDPDepacketizer(Depacketizer):
 
 class LiteEthUDPRX(Module):
     def __init__(self, ip_address, dw=8):
-        self.sink   = sink   = stream.Endpoint(eth_ipv4_user_description(dw))
-        self.source = source = stream.Endpoint(eth_udp_user_description(dw))
+        self.sink   = sink   = stream.Endpoint(eth_ipv4_user_description_extended(dw))
+        self.source = source = stream.Endpoint(eth_udp_user_description_extended(dw))
 
         # # #
 
@@ -166,7 +168,9 @@ class LiteEthUDPRX(Module):
 
         # Data-Path.
         self.comb += [
-            sink.connect(depacketizer.sink),
+            sink.connect(depacketizer.sink, omit=eth_udp_user_extended_fields),
+            sink.connect(source, keep=eth_udp_user_extended_fields),
+
             depacketizer.source.connect(source, keep={
                 "src_port",
                 "dst_port",
@@ -191,6 +195,7 @@ class LiteEthUDPRX(Module):
         fsm.act("RECEIVE",
             depacketizer.source.connect(source, keep={"valid", "ready"}),
             source.last.eq(depacketizer.source.last | (count == (source.length - dw//8))),
+            If(source.last, source.last_be.eq(depacketizer.source.last_be)),
             If(source.valid & source.ready,
                 NextValue(count, count + dw//8),
                 If(depacketizer.source.last,
