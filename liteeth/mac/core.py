@@ -78,15 +78,22 @@ class LiteEthMACCore(Module, AutoCSR):
                 self.submodules += tx_converter
                 self.pipeline.append(tx_converter)
 
-            def add_tx_submodule(self, provided_module):
-                if provided_module is not None:
-                    self.submodules += ClockDomainsRenamer(
-                        {
-                            "eth_tx": tx_cd_name,
-                            "sys"   : tx_cd_name,
-                            "eth_rx": rx_cd_name
-                        })(provided_module)
-                    self.pipeline += [provided_module]
+            def add_tx_submodule(self, provided_modules):
+                if provided_modules is not None:
+                    if not isinstance(provided_modules, list):
+                        provided_modules = [provided_modules]
+                    for tx_submodule in provided_modules:
+                        tx_submodule = ClockDomainsRenamer(
+                            {
+                                "eth_tx": tx_cd_name,
+                                "sys"   : tx_cd_name,
+                                "eth_rx": rx_cd_name
+                            })(tx_submodule)
+                        if hasattr(tx_submodule, "name"):
+                            setattr(self.submodules, tx_submodule.name, tx_submodule)
+                        else:
+                            self.submodules += tx_submodule
+                        self.pipeline += [tx_submodule]
 
             def add_last_be(self):
                 tx_last_be = last_be.LiteEthMACTXLastBE(phy_dw)
@@ -121,6 +128,8 @@ class LiteEthMACCore(Module, AutoCSR):
 
             def do_finalize(self):
                 self.submodules += stream.Pipeline(*self.pipeline)
+                print("======================")
+                print(self._submodules)
 
         tx_datapath = TXDatapath()
         tx_datapath.pipeline.append(self.sink)
@@ -193,16 +202,22 @@ class LiteEthMACCore(Module, AutoCSR):
                 self.submodules += rx_last_be
                 self.pipeline.append(rx_last_be)
 
-            def add_rx_submodule(self, provided_module):
-                if provided_module is not None:
-                    rx_submodule = ClockDomainsRenamer(
-                        {
-                            "eth_rx": rx_cd_name,
-                            "sys"   : rx_cd_name,
-                            "eth_tx": tx_cd_name
-                        })(provided_module)
-                    self.submodules += rx_submodule
-                    self.pipeline += [rx_submodule]
+            def add_rx_submodule(self, provided_modules):
+                if provided_modules is not None:
+                    if not isinstance(provided_modules, list):
+                        provided_modules = [provided_modules]
+                    for rx_submodule in provided_modules:
+                        rx_submodule = ClockDomainsRenamer(
+                            {
+                                "eth_rx": rx_cd_name,
+                                "sys"   : rx_cd_name,
+                                "eth_tx": tx_cd_name
+                            })(rx_submodule)
+                        if hasattr(rx_submodule, "name"):
+                            setattr(self.submodules, rx_submodule.name, rx_submodule)
+                        else:
+                            self.submodules += rx_submodule
+                        self.pipeline += [rx_submodule]
 
             def add_converter(self):
                 rx_converter = stream.StrideConverter(
