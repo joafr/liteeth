@@ -122,7 +122,7 @@ class LiteEthMACCore(Module, AutoCSR):
 
             def add_gap(self):
                 tx_gap = gap.LiteEthMACGap(phy_dw)
-                tx_gap = ClockDomainsRenamer(cd_tx)(tx_gap)
+                tx_gap = ClockDomainsRenamer(tx_cd_name)(tx_gap)
                 self.submodules += tx_gap
                 self.pipeline.append(tx_gap)
 
