@@ -7,8 +7,7 @@
 from liteeth.common import *
 from liteeth.crossbar import LiteEthCrossbar
 
-#from liteeth.packet import Depacketizer, Packetizer
-from litex.soc.interconnect.packet import Depacketizer, Packetizer
+from liteeth.packet import Depacketizer, Packetizer
 
 # IP Crossbar --------------------------------------------------------------------------------------
 

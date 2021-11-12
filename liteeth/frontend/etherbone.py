@@ -20,7 +20,7 @@ from liteeth.common import *
 from litex.soc.interconnect import wishbone
 from litex.soc.interconnect.packet import *
 
-#from liteeth.packet import Depacketizer, Packetizer
+from liteeth.packet import Depacketizer, Packetizer
 
 # Etherbone Packet ---------------------------------------------------------------------------------
 
