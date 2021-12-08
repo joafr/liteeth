@@ -27,7 +27,7 @@ class LiteEthPHYRMIITX(Module):
 
         converter = stream.StrideConverter(converter_description(8),
                                            converter_description(2))
-        self.submodules += converter
+        self.submodules.converter = converter
         self.comb += [
             converter.sink.valid.eq(sink.valid),
             converter.sink.data.eq(sink.data),
@@ -38,7 +38,11 @@ class LiteEthPHYRMIITX(Module):
         pads.tx_data.reset_less = True
         self.sync += [
             pads.tx_en.eq(converter.source.valid),
-            pads.tx_data.eq(converter.source.data)
+            If(converter.source.valid,
+                pads.tx_data.eq(converter.source.data)
+            ).Else(
+                pads.tx_data.eq(0)
+            )
         ]
 
 

@@ -42,7 +42,9 @@ class LiteEthIPCoreMod(Module, AutoCSR):
             
         if with_packet_fifo:
             tx_fifo = PacketFIFO(eth_phy_description(phy.dw), 2048, buffered=False)
+            tx_fifo = ClockDomainsRenamer("eth_tx")(tx_fifo)
             rx_fifo = PacketFIFOReset(eth_phy_description(phy.dw), 16384)
+            rx_fifo = ClockDomainsRenamer("eth_rx")(rx_fifo)
             rx_tx_additional = (rx_fifo, tx_fifo)
         else:
             rx_tx_additional = (None, None)

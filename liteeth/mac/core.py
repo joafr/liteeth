@@ -86,7 +86,6 @@ class LiteEthMACCore(Module, AutoCSR):
                         tx_submodule = ClockDomainsRenamer(
                             {
                                 "eth_tx": tx_cd_name,
-                                "sys"   : tx_cd_name,
                                 "eth_rx": rx_cd_name
                             })(tx_submodule)
                         if hasattr(tx_submodule, "name"):
@@ -209,7 +208,6 @@ class LiteEthMACCore(Module, AutoCSR):
                         rx_submodule = ClockDomainsRenamer(
                             {
                                 "eth_rx": rx_cd_name,
-                                "sys"   : rx_cd_name,
                                 "eth_tx": tx_cd_name
                             })(rx_submodule)
                         if hasattr(rx_submodule, "name"):
