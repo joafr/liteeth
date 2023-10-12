@@ -85,10 +85,9 @@ class LiteEthMAC(Module, AutoCSR):
 
 class LiteEthMACSingleSource(Module, AutoCSR):
     def __init__(self, phy, dw,
-        endianness        = "big",
         with_preamble_crc = True,
         rx_tx_additional = (None, None)):
-        self.submodules.core = LiteEthMACCore(phy, dw, endianness, with_preamble_crc,
+        self.submodules.core = LiteEthMACCore(phy, dw, with_preamble_crc=with_preamble_crc,
                                                 rx_tx_additional=rx_tx_additional)
         self.csrs = []
 

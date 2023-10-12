@@ -97,10 +97,11 @@ class Packetizer(Module):
         )
         if not aligned:
             header_offset_multiplier = 1 if header_words == 1 else 2
-            self.sync += If(source.ready, sink_d.eq(sink))
+            self.sync += If(source.ready & source.valid, sink_d.eq(sink))
             fsm.act("UNALIGNED-DATA-COPY",
                 source.valid.eq(sink.valid | sink_d.last),
-                source_last_a.eq(sink.last | sink_d.last),
+                # source_last_a.eq(sink.last | sink_d.last), # It's unaligned, shouldn't it *have* to come one cycle later??
+                source_last_a.eq(sink_d.last),
                 If(fsm_from_idle,
                     source.data[:max(header_leftover*8, 1)].eq(sr[min(header_offset_multiplier*data_width, len(sr)-1):])
                 ).Else(
